@@ -1,0 +1,23 @@
+package model
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+type Book struct {
+	ID          uuid.UUID `gorm:"type:char(36);not null;primaryKey"`
+	Title       string    `gorm:"not null;uniqueIndex"`
+	Description string    `gorm:"not null"`
+	AuthorID    uuid.UUID `gorm:"type:char(36);not null"`
+	Author      Author
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (b *Book) BeforeCreate(_ *gorm.DB) error {
+	b.ID, _ = uuid.NewV7()
+	return nil
+}

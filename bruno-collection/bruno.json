@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "go-rest-api-chi-example",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}
