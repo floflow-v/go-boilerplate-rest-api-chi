@@ -1,7 +1,7 @@
-version: '3'
+version: "3"
 
 vars:
-  DOCKER_COMPOSE_FILE_PATH: './docker/docker-compose.yml'
+  DOCKER_COMPOSE_FILE_PATH: "./docker/docker-compose.yml"
 
 tasks:
   dev:
@@ -49,7 +49,7 @@ tasks:
   test-cover:
     desc: run all tests with coverage
     cmds:
-      - go test -coverprofile coverage.txt $(go list ./... | grep -v '/docs' | grep -v '/mocks' | grep -v '/model')
+      - go test -coverprofile coverage.txt $(go list ./... | grep -v '/docs' | grep -v '/mocks' | grep -v '/database')
       - go tool cover -func=coverage.txt
       - rm coverage.txt
     silent: true
@@ -57,6 +57,6 @@ tasks:
   test-cover-details:
     desc: run all tests with coverage and show details
     cmds:
-      - go test -coverprofile coverage.txt $(go list ./... | grep -v '/docs' | grep -v '/mocks' | grep -v '/model')
+      - go test -coverprofile coverage.txt $(go list ./... | grep -v '/docs' | grep -v '/mocks' | grep -v '/database')
       - go tool cover -html=coverage.txt
     silent: true

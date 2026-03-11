@@ -4,18 +4,16 @@ import (
 	"database/sql"
 	"fmt"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/rs/zerolog"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 
 	"go-boilerplate-rest-api-chi/internal/config"
-	"go-boilerplate-rest-api-chi/internal/model"
+	"go-boilerplate-rest-api-chi/internal/database/sqlc"
 )
 
 type Database struct {
-	Gorm  *gorm.DB
-	sqlDB *sql.DB
+	*sql.DB
+	Queries *sqlc.Queries
 }
 
 func Init(cfg config.Config, logger zerolog.Logger) (*Database, error) {
@@ -28,44 +26,33 @@ func Init(cfg config.Config, logger zerolog.Logger) (*Database, error) {
 		cfg.Database.Name,
 	)
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger:         gormLogger.Default.LogMode(gormLogger.Silent),
-		TranslateError: true,
-	})
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to connect to the database")
 		return nil, err
 	}
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to find database instance")
+	db.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.Database.MaxLifetimeConn)
+	db.SetConnMaxIdleTime(cfg.Database.MaxIdleTimeConn)
+
+	if err := db.Ping(); err != nil {
+		logger.Error().Err(err).Msg("Failed to ping database")
 		return nil, err
 	}
 
-	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(cfg.Database.MaxLifetimeConn)
-	sqlDB.SetConnMaxIdleTime(cfg.Database.MaxIdleTimeConn)
-
-	if err := db.AutoMigrate(
-		// Models
-		&model.Book{},
-		&model.Author{},
-	); err != nil {
-		logger.Error().Err(err).Msg("auto-migration failed")
-		return nil, err
-	}
+	logger.Info().Msg("Successfully connected to MariaDB")
 
 	return &Database{
-		Gorm:  db,
-		sqlDB: sqlDB,
+		DB:      db,
+		Queries: sqlc.New(db),
 	}, nil
 }
 
 func (d *Database) Close() error {
-	if d.sqlDB != nil {
-		return d.sqlDB.Close()
+	if d.DB != nil {
+		return d.DB.Close()
 	}
 	return nil
 }

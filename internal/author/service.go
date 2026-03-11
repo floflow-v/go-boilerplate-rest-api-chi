@@ -2,45 +2,81 @@ package author
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"go-boilerplate-rest-api-chi/internal/author/dto"
-	"go-boilerplate-rest-api-chi/internal/model"
+	"go-boilerplate-rest-api-chi/internal/database/sqlc"
+	internalError "go-boilerplate-rest-api-chi/internal/error"
 )
 
 //go:generate mockgen -destination=../mocks/mock_author_service.go -package=mocks go-boilerplate-rest-api-chi/internal/author AuthorService
 type AuthorService interface {
-	CreateAuthor(ctx context.Context, req *dto.CreateAuthorRequest) (*model.Author, error)
-	GetAuthorByID(ctx context.Context, authorID uuid.UUID) (*model.Author, error)
+	CreateAuthor(ctx context.Context, req dto.CreateAuthorRequest) (dto.AuthorResponse, error)
+	GetAuthorByID(ctx context.Context, authorID uuid.UUID) (dto.AuthorResponse, error)
 }
 
 type authorService struct {
-	repository AuthorRepository
-	logger     zerolog.Logger
+	querier sqlc.Querier
+	logger  zerolog.Logger
 }
 
-func NewAuthorService(repository AuthorRepository, logger zerolog.Logger) AuthorService {
+func NewAuthorService(querier sqlc.Querier, logger zerolog.Logger) AuthorService {
 	return &authorService{
-		repository: repository,
-		logger:     logger,
+		querier: querier,
+		logger:  logger,
 	}
 }
 
-func (s *authorService) CreateAuthor(ctx context.Context, req *dto.CreateAuthorRequest) (*model.Author, error) {
-	author := &model.Author{
+func (s *authorService) CreateAuthor(ctx context.Context, req dto.CreateAuthorRequest) (dto.AuthorResponse, error) {
+	authorID, _ := uuid.NewV7()
+
+	authorRequest := sqlc.CreateAuthorParams{
+		ID:   authorID.String(),
 		Name: req.Name,
 	}
 
-	return s.repository.Create(ctx, author)
-}
-
-func (s *authorService) GetAuthorByID(ctx context.Context, authorID uuid.UUID) (*model.Author, error) {
-	author, err := s.repository.GetByID(ctx, authorID)
+	err := s.querier.CreateAuthor(ctx, authorRequest)
 	if err != nil {
-		return nil, err
+		s.logger.Error().Err(err).Msg("Failed to create author")
+
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrDuplicate):
+			return dto.AuthorResponse{}, internalError.AuthorDuplicate
+
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return dto.AuthorResponse{}, internalError.InternalError
+		}
 	}
 
-	return author, nil
+	author, err := s.querier.GetAuthorByID(ctx, authorID.String())
+	if err != nil {
+		s.logger.Error().Err(err).Msg("failed to get author after creation")
+		return dto.AuthorResponse{}, internalError.InternalError
+	}
+
+	return dto.ToAuthorResponse(author), nil
+}
+
+func (s *authorService) GetAuthorByID(ctx context.Context, authorID uuid.UUID) (dto.AuthorResponse, error) {
+	author, err := s.querier.GetAuthorByID(ctx, authorID.String())
+	if err != nil {
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrNotFound):
+			return dto.AuthorResponse{}, internalError.AuthorNotFound
+
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return dto.AuthorResponse{}, internalError.InternalError
+		}
+	}
+
+	return dto.ToAuthorResponse(author), nil
 }

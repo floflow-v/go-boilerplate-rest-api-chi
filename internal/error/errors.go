@@ -1,6 +1,9 @@
 package error
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
 
 var (
 	// authors
@@ -18,4 +21,13 @@ var (
 	InvalidUUID        = New("invalid_uuid", "Invalid uuid", http.StatusBadRequest)
 
 	InternalError = New("internal_error", "Internal server error", http.StatusInternalServerError)
+)
+
+// mysql errors
+var (
+	ErrDBErrNotFound            = errors.New("not_found")
+	ErrDBErrDuplicate           = errors.New("duplicate")
+	ErrDBErrForeignKeyViolation = errors.New("foreign_key_violation")
+	ErrDBErrNotNullViolation    = errors.New("not_null_violation")
+	ErrDBErrDataTooLong         = errors.New("data_too_long")
 )

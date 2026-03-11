@@ -21,7 +21,7 @@ func TestNewLogger(t *testing.T) {
 	})
 
 	t.Run("invalid level defaults to info", func(t *testing.T) {
-		cfg := &config.Config{Log: config.LogConfig{Level: "unknown", Format: "json"}}
+		cfg := &config.Config{Log: config.LogConfig{Level: "Unknownn", Format: "json"}}
 		log, err := logger.NewLogger(cfg)
 
 		assert.NoError(t, err)

@@ -2,97 +2,167 @@ package book
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"go-boilerplate-rest-api-chi/internal/author"
 	"go-boilerplate-rest-api-chi/internal/book/dto"
+	"go-boilerplate-rest-api-chi/internal/database/sqlc"
 	internalError "go-boilerplate-rest-api-chi/internal/error"
-	"go-boilerplate-rest-api-chi/internal/model"
 )
 
 //go:generate mockgen -destination=../mocks/mock_book_service.go -package=mocks go-boilerplate-rest-api-chi/internal/book BookService
 type BookService interface {
-	CreateBook(ctx context.Context, req *dto.CreateBookRequest) (*model.Book, error)
-	GetAllBooks(ctx context.Context) ([]*model.Book, error)
-	GetBookByID(ctx context.Context, bookID uuid.UUID) (*model.Book, error)
-	UpdateBook(ctx context.Context, req *dto.UpdateBookRequest, bookID uuid.UUID) error
+	CreateBook(ctx context.Context, req dto.CreateBookRequest) (dto.BookResponse, error)
+	GetAllBooks(ctx context.Context) ([]dto.BookResponse, error)
+	GetBookByID(ctx context.Context, bookID uuid.UUID) (dto.BookResponse, error)
+	UpdateBook(ctx context.Context, req dto.UpdateBookRequest, bookID uuid.UUID) error
 	DeleteBook(ctx context.Context, bookID uuid.UUID) error
 }
 
 type bookService struct {
-	repository       BookRepository
-	authorRepository author.AuthorRepository
-	logger           zerolog.Logger
+	querier sqlc.Querier
+	logger  zerolog.Logger
 }
 
-func NewBookService(repository BookRepository, authorRepository author.AuthorRepository, logger zerolog.Logger) BookService {
+func NewBookService(querier sqlc.Querier, logger zerolog.Logger) BookService {
 	return &bookService{
-		repository:       repository,
-		authorRepository: authorRepository,
-		logger:           logger,
+		querier: querier,
+		logger:  logger,
 	}
 }
 
-func (s *bookService) CreateBook(ctx context.Context, req *dto.CreateBookRequest) (*model.Book, error) {
+func (s *bookService) CreateBook(ctx context.Context, req dto.CreateBookRequest) (dto.BookResponse, error) {
 	authorID, err := uuid.Parse(req.AuthorID)
 	if err != nil {
-		return nil, internalError.InvalidAuthorID
+		return dto.BookResponse{}, internalError.InvalidAuthorID
 	}
 
-	exists, err := s.authorRepository.Exists(ctx, authorID)
+	_, err = s.querier.GetAuthorByID(ctx, authorID.String())
 	if err != nil {
-		return nil, err
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrNotFound):
+			return dto.BookResponse{}, internalError.AuthorNotFound
+
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return dto.BookResponse{}, internalError.InternalError
+		}
 	}
 
-	if !exists {
-		return nil, internalError.AuthorNotFound
-	}
+	bookID, _ := uuid.NewV7()
 
-	book := &model.Book{
+	bookRequest := sqlc.CreateBookParams{
+		ID:          bookID.String(),
 		Title:       req.Title,
 		Description: req.Description,
-		AuthorID:    authorID,
+		AuthorID:    authorID.String(),
 	}
 
-	newBook, err := s.repository.Create(ctx, book)
+	err = s.querier.CreateBook(ctx, bookRequest)
 	if err != nil {
-		return nil, err
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrDuplicate):
+			return dto.BookResponse{}, internalError.BookDuplicate
+
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return dto.BookResponse{}, internalError.InternalError
+		}
 	}
 
-	return s.repository.GetByID(ctx, newBook.ID)
+	book, err := s.querier.GetBookByID(ctx, bookID.String())
+	if err != nil {
+		s.logger.Error().Err(err).Msg("failed to get book after creation")
+		return dto.BookResponse{}, internalError.InternalError
+	}
+
+	return dto.ToBookResponse(book), nil
 }
 
-func (s *bookService) GetAllBooks(ctx context.Context) ([]*model.Book, error) {
-	books, err := s.repository.GetAll(ctx)
+func (s *bookService) GetAllBooks(ctx context.Context) ([]dto.BookResponse, error) {
+	books, err := s.querier.GetAllBooks(ctx)
 	if err != nil {
-		return nil, err
+		return nil, internalError.InternalError
 	}
 
 	if len(books) == 0 {
 		return nil, internalError.BookNotFound
 	}
-	return books, nil
+
+	return dto.ToBookResponseFromRows(books), nil
 }
 
-func (s *bookService) GetBookByID(ctx context.Context, bookID uuid.UUID) (*model.Book, error) {
-	book, err := s.repository.GetByID(ctx, bookID)
+func (s *bookService) GetBookByID(ctx context.Context, bookID uuid.UUID) (dto.BookResponse, error) {
+	book, err := s.querier.GetBookByID(ctx, bookID.String())
 	if err != nil {
-		return nil, err
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrNotFound):
+			return dto.BookResponse{}, internalError.BookNotFound
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return dto.BookResponse{}, internalError.InternalError
+		}
 	}
 
-	return book, nil
+	return dto.ToBookResponse(book), nil
 }
 
-func (s *bookService) UpdateBook(ctx context.Context, req *dto.UpdateBookRequest, bookID uuid.UUID) error {
-	updates := map[string]interface{}{
-		"description": req.Description,
+func (s *bookService) UpdateBook(ctx context.Context, req dto.UpdateBookRequest, bookID uuid.UUID) error {
+	_, err := s.querier.GetBookByID(ctx, bookID.String())
+	if err != nil {
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrNotFound):
+			return internalError.BookNotFound
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return internalError.InternalError
+		}
 	}
 
-	return s.repository.Update(ctx, bookID, updates)
+	bookRequest := sqlc.UpdateBookParams{
+		Title:       req.Title,
+		Description: req.Description,
+		ID:          bookID.String(),
+	}
+
+	err = s.querier.UpdateBook(ctx, bookRequest)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Unknown error")
+		return internalError.InternalError
+	}
+
+	return nil
 }
 
 func (s *bookService) DeleteBook(ctx context.Context, bookID uuid.UUID) error {
-	return s.repository.Delete(ctx, bookID)
+	_, err := s.querier.GetBookByID(ctx, bookID.String())
+	if err != nil {
+		dbErr := internalError.MapDBError(err)
+
+		switch {
+		case errors.Is(dbErr, internalError.ErrDBErrNotFound):
+			return internalError.BookNotFound
+		default:
+			s.logger.Error().Err(err).Msg("Unknown error")
+			return internalError.InternalError
+		}
+	}
+
+	err = s.querier.DeleteBook(ctx, bookID.String())
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Unknown error")
+		return internalError.InternalError
+	}
+
+	return nil
 }

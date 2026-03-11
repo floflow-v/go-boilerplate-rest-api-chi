@@ -21,8 +21,6 @@ import (
 	"go-boilerplate-rest-api-chi/internal/book/dto"
 	internalError "go-boilerplate-rest-api-chi/internal/error"
 	"go-boilerplate-rest-api-chi/internal/mocks"
-	"go-boilerplate-rest-api-chi/internal/model"
-	"go-boilerplate-rest-api-chi/internal/response"
 	"go-boilerplate-rest-api-chi/internal/validator"
 )
 
@@ -42,7 +40,7 @@ func TestBookHandler_CreateBook(t *testing.T) {
 				AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
 			},
 			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.CreateBookRequest{
+				input := dto.CreateBookRequest{
 					Title:       "Book1",
 					Description: "Description1",
 					AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
@@ -50,12 +48,12 @@ func TestBookHandler_CreateBook(t *testing.T) {
 
 				mockService.EXPECT().
 					CreateBook(gomock.Any(), input).
-					Return(&model.Book{
-						ID:          uuid.MustParse("13867a7d-d1c4-4a06-aa60-42741a4fbbbd"),
+					Return(dto.BookResponse{
+						ID:          uuid.MustParse("13867a7d-d1c4-4a06-aa60-42741a4fbbbd").String(),
 						Title:       "Book1",
 						Description: "Description1",
-						Author: model.Author{
-							ID:   uuid.MustParse("24319e61-32d0-49f3-987f-019b734ed9c7"),
+						Author: authorDTO.AuthorResponse{
+							ID:   uuid.MustParse("24319e61-32d0-49f3-987f-019b734ed9c7").String(),
 							Name: "Author1",
 						},
 					}, nil)
@@ -106,29 +104,6 @@ func TestBookHandler_CreateBook(t *testing.T) {
 			},
 		},
 		{
-			name: "error service internal error",
-			requestBody: dto.CreateBookRequest{
-				Title:       "Book1",
-				Description: "Description1",
-				AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
-			},
-			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.CreateBookRequest{
-					Title:       "Book1",
-					Description: "Description1",
-					AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
-				}
-				mockService.EXPECT().
-					CreateBook(gomock.Any(), input).
-					Return(nil, errors.New("database connection failed"))
-			},
-			expectedStatusCode: http.StatusInternalServerError,
-			expectedResponse: internalError.Response{
-				Error:   internalError.InternalError.Code,
-				Message: internalError.InternalError.Message,
-			},
-		},
-		{
 			name: "error invalid author id",
 			requestBody: dto.CreateBookRequest{
 				Title:       "Book1",
@@ -136,14 +111,14 @@ func TestBookHandler_CreateBook(t *testing.T) {
 				AuthorID:    "invalid-uuid",
 			},
 			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.CreateBookRequest{
+				input := dto.CreateBookRequest{
 					Title:       "Book1",
 					Description: "Description1",
 					AuthorID:    "invalid-uuid",
 				}
 				mockService.EXPECT().
 					CreateBook(gomock.Any(), input).
-					Return(nil, internalError.InvalidAuthorID)
+					Return(dto.BookResponse{}, internalError.InvalidAuthorID)
 			},
 			expectedStatusCode: http.StatusBadRequest,
 			expectedResponse: internalError.Response{
@@ -159,14 +134,14 @@ func TestBookHandler_CreateBook(t *testing.T) {
 				AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
 			},
 			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.CreateBookRequest{
+				input := dto.CreateBookRequest{
 					Title:       "Book1",
 					Description: "Description1",
 					AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
 				}
 				mockService.EXPECT().
 					CreateBook(gomock.Any(), input).
-					Return(nil, internalError.AuthorNotFound)
+					Return(dto.BookResponse{}, internalError.AuthorNotFound)
 			},
 			expectedStatusCode: http.StatusNotFound,
 			expectedResponse: internalError.Response{
@@ -182,19 +157,42 @@ func TestBookHandler_CreateBook(t *testing.T) {
 				AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
 			},
 			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.CreateBookRequest{
+				input := dto.CreateBookRequest{
 					Title:       "Book1",
 					Description: "Description1",
 					AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
 				}
 				mockService.EXPECT().
 					CreateBook(gomock.Any(), input).
-					Return(nil, internalError.BookDuplicate)
+					Return(dto.BookResponse{}, internalError.BookDuplicate)
 			},
 			expectedStatusCode: http.StatusConflict,
 			expectedResponse: internalError.Response{
 				Error:   internalError.BookDuplicate.Code,
 				Message: internalError.BookDuplicate.Message,
+			},
+		},
+		{
+			name: "error service internal error",
+			requestBody: dto.CreateBookRequest{
+				Title:       "Book1",
+				Description: "Description1",
+				AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
+			},
+			configureMock: func(mockService *mocks.MockBookService) {
+				input := dto.CreateBookRequest{
+					Title:       "Book1",
+					Description: "Description1",
+					AuthorID:    "24319e61-32d0-49f3-987f-019b734ed9c7",
+				}
+				mockService.EXPECT().
+					CreateBook(gomock.Any(), input).
+					Return(dto.BookResponse{}, errors.New("database connection failed"))
+			},
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedResponse: internalError.Response{
+				Error:   internalError.InternalError.Code,
+				Message: internalError.InternalError.Message,
 			},
 		},
 	}
@@ -249,31 +247,35 @@ func TestBookHandler_GetAllBooks(t *testing.T) {
 		{
 			name: "success get all books",
 			configureMock: func(mockService *mocks.MockBookService) {
-				author := model.Author{
-					ID:   uuid.MustParse("24319e61-32d0-49f3-987f-019b734ed9c7"),
-					Name: "Author1",
-				}
-
 				mockService.EXPECT().
 					GetAllBooks(gomock.Any()).
-					Return([]*model.Book{
+					Return([]dto.BookResponse{
 						{
-							ID:          uuid.MustParse("13867a7d-d1c4-4a06-aa60-42741a4fbbbd"),
+							ID:          uuid.MustParse("13867a7d-d1c4-4a06-aa60-42741a4fbbbd").String(),
 							Title:       "Book1",
 							Description: "Description1",
-							Author:      author,
+							Author: authorDTO.AuthorResponse{
+								ID:   "24319e61-32d0-49f3-987f-019b734ed9c7",
+								Name: "Author1",
+							},
 						},
 						{
-							ID:          uuid.MustParse("66509608-3ca2-46d0-99d6-8ad989fe0061"),
+							ID:          uuid.MustParse("66509608-3ca2-46d0-99d6-8ad989fe0061").String(),
 							Title:       "Book2",
 							Description: "Description2",
-							Author:      author,
+							Author: authorDTO.AuthorResponse{
+								ID:   "24319e61-32d0-49f3-987f-019b734ed9c7",
+								Name: "Author1",
+							},
 						},
 						{
-							ID:          uuid.MustParse("d58905b0-1d21-47ee-805f-ccc92aba2453"),
+							ID:          uuid.MustParse("d58905b0-1d21-47ee-805f-ccc92aba2453").String(),
 							Title:       "Book3",
 							Description: "Description3",
-							Author:      author,
+							Author: authorDTO.AuthorResponse{
+								ID:   "24319e61-32d0-49f3-987f-019b734ed9c7",
+								Name: "Author1",
+							},
 						},
 					}, nil)
 			},
@@ -368,15 +370,17 @@ func TestBookHandler_GetBookByID(t *testing.T) {
 			configureMock: func(mockService *mocks.MockBookService) {
 				mockService.EXPECT().
 					GetBookByID(gomock.Any(), uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227")).
-					Return(&model.Book{
-						ID:          uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227"),
-						Title:       "Book1",
-						Description: "Description1",
-						Author: model.Author{
-							ID:   uuid.MustParse("88a49625-ee9d-456d-9541-e359454eb40c"),
-							Name: "Author1",
-						},
-					}, nil)
+					Return(
+						dto.BookResponse{
+							ID:          uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227").String(),
+							Title:       "Book1",
+							Description: "Description1",
+							Author: authorDTO.AuthorResponse{
+								ID:   uuid.MustParse("88a49625-ee9d-456d-9541-e359454eb40c").String(),
+								Name: "Author1",
+							},
+						}, nil,
+					)
 			},
 			expectedStatusCode: http.StatusOK,
 			expectedResponse: dto.BookResponse{
@@ -395,7 +399,7 @@ func TestBookHandler_GetBookByID(t *testing.T) {
 			configureMock: func(mockService *mocks.MockBookService) {
 				mockService.EXPECT().
 					GetBookByID(gomock.Any(), uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227")).
-					Return(nil, internalError.BookNotFound)
+					Return(dto.BookResponse{}, internalError.BookNotFound)
 			},
 			expectedStatusCode: http.StatusNotFound,
 			expectedResponse: internalError.Response{
@@ -419,7 +423,7 @@ func TestBookHandler_GetBookByID(t *testing.T) {
 			configureMock: func(mockService *mocks.MockBookService) {
 				mockService.EXPECT().
 					GetBookByID(gomock.Any(), uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227")).
-					Return(nil, errors.New("database connection failed"))
+					Return(dto.BookResponse{}, errors.New("database connection failed"))
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedResponse: internalError.Response{
@@ -477,7 +481,7 @@ func TestBookHandler_UpdateBook(t *testing.T) {
 				Description: "Updated Description",
 			},
 			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.UpdateBookRequest{
+				input := dto.UpdateBookRequest{
 					Description: "Updated Description",
 				}
 
@@ -485,11 +489,8 @@ func TestBookHandler_UpdateBook(t *testing.T) {
 					UpdateBook(gomock.Any(), input, uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227")).
 					Return(nil)
 			},
-			expectedStatusCode: http.StatusOK,
-			expectedResponse: response.SuccessResponse{
-				Status:  "success",
-				Message: "Book updated successfully",
-			},
+			expectedStatusCode: http.StatusNoContent,
+			expectedResponse:   nil,
 		},
 		{
 			name:       "error invalid uuid",
@@ -541,7 +542,7 @@ func TestBookHandler_UpdateBook(t *testing.T) {
 				Description: "Updated Description",
 			},
 			configureMock: func(mockService *mocks.MockBookService) {
-				input := &dto.UpdateBookRequest{
+				input := dto.UpdateBookRequest{
 					Description: "Updated Description",
 				}
 				mockService.EXPECT().
@@ -588,10 +589,11 @@ func TestBookHandler_UpdateBook(t *testing.T) {
 
 			assert.Equal(t, test.expectedStatusCode, w.Code)
 
-			expectedJSON, err := json.Marshal(test.expectedResponse)
-			require.NoError(t, err)
-
-			assert.JSONEq(t, string(expectedJSON), w.Body.String())
+			if test.expectedResponse != nil {
+				expectedJSON, err := json.Marshal(test.expectedResponse)
+				require.NoError(t, err)
+				assert.JSONEq(t, string(expectedJSON), w.Body.String())
+			}
 
 		})
 	}
@@ -613,11 +615,8 @@ func TestBookHandler_DeleteBook(t *testing.T) {
 					DeleteBook(gomock.Any(), uuid.MustParse("3a310074-b63f-455e-996f-63a5afffc227")).
 					Return(nil)
 			},
-			expectedStatusCode: http.StatusOK,
-			expectedResponse: response.SuccessResponse{
-				Status:  "success",
-				Message: "Book deleted successfully",
-			},
+			expectedStatusCode: http.StatusNoContent,
+			expectedResponse:   nil,
 		},
 		{
 			name:               "error invalid uuid",
@@ -682,10 +681,11 @@ func TestBookHandler_DeleteBook(t *testing.T) {
 
 			assert.Equal(t, test.expectedStatusCode, w.Code)
 
-			expectedJSON, err := json.Marshal(test.expectedResponse)
-			require.NoError(t, err)
-
-			assert.JSONEq(t, string(expectedJSON), w.Body.String())
+			if test.expectedResponse != nil {
+				expectedJSON, err := json.Marshal(test.expectedResponse)
+				require.NoError(t, err)
+				assert.JSONEq(t, string(expectedJSON), w.Body.String())
+			}
 
 		})
 	}

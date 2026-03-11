@@ -2,9 +2,11 @@ package author_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -12,83 +14,74 @@ import (
 
 	"go-boilerplate-rest-api-chi/internal/author"
 	"go-boilerplate-rest-api-chi/internal/author/dto"
+	"go-boilerplate-rest-api-chi/internal/database/sqlc"
 	internalError "go-boilerplate-rest-api-chi/internal/error"
 	"go-boilerplate-rest-api-chi/internal/mocks"
-	"go-boilerplate-rest-api-chi/internal/model"
 )
 
 func TestAuthorService_CreateAuthor(t *testing.T) {
 	tests := []struct {
 		name             string
-		input            *dto.CreateAuthorRequest
-		configureMock    func(*mocks.MockAuthorRepository)
-		expectedResponse *model.Author
+		input            dto.CreateAuthorRequest
+		configureMock    func(*mocks.MockQuerier)
+		expectedResponse dto.AuthorResponse
 		expectedError    error
 	}{
 		{
 			name: "success create author",
-			input: &dto.CreateAuthorRequest{
+			input: dto.CreateAuthorRequest{
 				Name: "J.K. Rowling",
 			},
-			configureMock: func(mockRepo *mocks.MockAuthorRepository) {
-				sampleAuthor := &model.Author{
-					Name: "J.K. Rowling",
-				}
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					CreateAuthor(gomock.Any(), gomock.AssignableToTypeOf(sqlc.CreateAuthorParams{})).
+					DoAndReturn(func(ctx context.Context, params sqlc.CreateAuthorParams) error {
+						assert.Equal(t, "J.K. Rowling", params.Name)
+						mockQuerier.EXPECT().
+							GetAuthorByID(gomock.Any(), params.ID).
+							Return(sqlc.Author(params), nil)
+						return nil
+					})
 
-				mockRepo.EXPECT().
-					Create(gomock.Any(), sampleAuthor).
-					Return(&model.Author{
-						ID:   uuid.New(),
-						Name: "J.K. Rowling",
-					}, nil)
 			},
-			expectedResponse: &model.Author{
+			expectedResponse: dto.AuthorResponse{
 				Name: "J.K. Rowling",
 			},
 		},
 		{
 			name: "error duplicate author",
-			input: &dto.CreateAuthorRequest{
+			input: dto.CreateAuthorRequest{
 				Name: "Duplicate Author",
 			},
-			configureMock: func(mockRepo *mocks.MockAuthorRepository) {
-				expectedEntity := &model.Author{
-					Name: "Duplicate Author",
-				}
-
-				mockRepo.EXPECT().
-					Create(gomock.Any(), expectedEntity).
-					Return(nil, internalError.AuthorDuplicate)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					CreateAuthor(gomock.Any(), gomock.AssignableToTypeOf(sqlc.CreateAuthorParams{})).
+					Return(&mysql.MySQLError{Number: 1062})
 			},
 			expectedError: internalError.AuthorDuplicate,
 		},
 		{
 			name: "error database error",
-			input: &dto.CreateAuthorRequest{
+			input: dto.CreateAuthorRequest{
 				Name: "Test Author",
 			},
-			configureMock: func(mockRepo *mocks.MockAuthorRepository) {
-				expectedEntity := &model.Author{
-					Name: "Test Author",
-				}
-
-				mockRepo.EXPECT().
-					Create(gomock.Any(), expectedEntity).
-					Return(nil, errors.New("invalid db"))
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					CreateAuthor(gomock.Any(), gomock.AssignableToTypeOf(sqlc.CreateAuthorParams{})).
+					Return(errors.New("invalid db"))
 			},
-			expectedError: errors.New("invalid db"),
+			expectedError: internalError.InternalError,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
+			mockQuerier := mocks.NewMockQuerier(ctrl)
 
-			test.configureMock(authorRepoMock)
-			service := author.NewAuthorService(authorRepoMock, zerolog.Nop())
+			test.configureMock(mockQuerier)
+			service := author.NewAuthorService(mockQuerier, zerolog.Nop())
 
 			result, err := service.CreateAuthor(context.Background(), test.input)
 
@@ -97,14 +90,9 @@ func TestAuthorService_CreateAuthor(t *testing.T) {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if test.expectedResponse != nil {
 				assert.NotNil(t, result)
 				assert.Equal(t, test.expectedResponse.Name, result.Name)
 				assert.NotEqual(t, uuid.Nil, result.ID)
-			} else {
-				assert.Nil(t, result)
 			}
 		})
 	}
@@ -114,56 +102,53 @@ func TestAuthorService_GetAuthorByID(t *testing.T) {
 	tests := []struct {
 		name             string
 		authorID         uuid.UUID
-		configureMock    func(*mocks.MockAuthorRepository)
-		expectedResponse *model.Author
+		configureMock    func(*mocks.MockQuerier)
+		expectedResponse dto.AuthorResponse
 		expectedError    error
 	}{
 		{
 			name:     "success get author by id",
 			authorID: uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626"),
-			configureMock: func(mockRepo *mocks.MockAuthorRepository) {
-				mockRepo.EXPECT().
-					GetByID(gomock.Any(), uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626")).
-					Return(
-						&model.Author{
-							ID:   uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626"),
-							Name: "J.K. Rowling",
-						}, nil,
-					)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), "eb21d07a-7ab3-40db-bfd3-448093bc5626").
+					Return(sqlc.Author{
+						ID:   "eb21d07a-7ab3-40db-bfd3-448093bc5626",
+						Name: "J.K. Rowling",
+					}, nil)
 			},
-			expectedResponse: &model.Author{
-				ID:   uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626"),
+			expectedResponse: dto.AuthorResponse{
+				ID:   "eb21d07a-7ab3-40db-bfd3-448093bc5626",
 				Name: "J.K. Rowling",
 			},
 		},
 		{
 			name:     "error author not found",
 			authorID: uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626"),
-			configureMock: func(mockRepo *mocks.MockAuthorRepository) {
-				mockRepo.EXPECT().
-					GetByID(gomock.Any(), uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626")).
-					Return(nil, internalError.AuthorNotFound)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), "eb21d07a-7ab3-40db-bfd3-448093bc5626").
+					Return(sqlc.Author{}, sql.ErrNoRows)
 			},
 			expectedError: internalError.AuthorNotFound,
 		},
 		{
 			name:     "error database error",
 			authorID: uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626"),
-			configureMock: func(mockRepo *mocks.MockAuthorRepository) {
-				mockRepo.EXPECT().
-					GetByID(gomock.Any(), uuid.MustParse("eb21d07a-7ab3-40db-bfd3-448093bc5626")).
-					Return(nil, errors.New("invalid db"))
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), "eb21d07a-7ab3-40db-bfd3-448093bc5626").
+					Return(sqlc.Author{}, errors.New("invalid db"))
 			},
-			expectedError: errors.New("invalid db"),
+			expectedError: internalError.InternalError,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
+			authorRepoMock := mocks.NewMockQuerier(ctrl)
 
 			test.configureMock(authorRepoMock)
 			service := author.NewAuthorService(authorRepoMock, zerolog.Nop())
@@ -175,14 +160,9 @@ func TestAuthorService_GetAuthorByID(t *testing.T) {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if test.expectedResponse != nil {
 				assert.NotNil(t, result)
 				assert.Equal(t, test.expectedResponse.Name, result.Name)
 				assert.NotEqual(t, uuid.Nil, result.ID)
-			} else {
-				assert.Nil(t, result)
 			}
 		})
 	}

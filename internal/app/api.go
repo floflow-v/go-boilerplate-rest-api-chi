@@ -29,11 +29,8 @@ func buildAPI(cfg config.Config, logger zerolog.Logger, db *database.Database) *
 
 	// -------- Repos / Services / Handlers --------
 
-	bookRepo := book.NewBookRepository(db.Gorm, logger)
-	authorRepo := author.NewAuthorRepository(db.Gorm, logger)
-
-	bookService := book.NewBookService(bookRepo, authorRepo, logger)
-	authorService := author.NewAuthorService(authorRepo, logger)
+	bookService := book.NewBookService(db.Queries, logger)
+	authorService := author.NewAuthorService(db.Queries, logger)
 
 	bookHandler := book.NewBookHandler(bookService, validator, logger)
 	authorHandler := author.NewAuthorHandler(authorService, validator, logger)

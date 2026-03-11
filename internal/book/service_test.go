@@ -2,173 +2,147 @@ package book_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"gorm.io/gorm"
 
+	authorDto "go-boilerplate-rest-api-chi/internal/author/dto"
 	"go-boilerplate-rest-api-chi/internal/book"
 	"go-boilerplate-rest-api-chi/internal/book/dto"
+	"go-boilerplate-rest-api-chi/internal/database/sqlc"
 	internalError "go-boilerplate-rest-api-chi/internal/error"
 	"go-boilerplate-rest-api-chi/internal/mocks"
-	"go-boilerplate-rest-api-chi/internal/model"
 )
 
 func TestBookService_CreateBook(t *testing.T) {
 	tests := []struct {
 		name             string
-		input            *dto.CreateBookRequest
-		configureMock    func(*mocks.MockBookRepository, *mocks.MockAuthorRepository)
-		expectedResponse *model.Book
+		input            dto.CreateBookRequest
+		configureMock    func(*mocks.MockQuerier)
+		expectedResponse dto.BookResponse
 		expectedError    error
 	}{
 		{
 			name: "success create book",
-			input: &dto.CreateBookRequest{
+			input: dto.CreateBookRequest{
 				Title:       "Book1",
 				Description: "Description of book1",
 				AuthorID:    "779404e4-2660-4c80-b958-cfa72515e7d4",
 			},
-			configureMock: func(mockBookRepository *mocks.MockBookRepository, mockAuthorRepository *mocks.MockAuthorRepository) {
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
 				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
 
-				mockAuthorRepository.EXPECT().
-					Exists(gomock.Any(), authorID).
-					Return(true, nil)
-
-				sampleBook := &model.Book{
-					Title:       "Book1",
-					Description: "Description of book1",
-					AuthorID:    authorID,
-				}
-
-				mockBookRepository.EXPECT().
-					Create(gomock.Any(), sampleBook).
-					Return(&model.Book{
-						ID:          uuid.New(),
-						Title:       "Book1",
-						Description: "Description of book1",
-						AuthorID:    authorID,
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), authorID.String()).
+					Return(sqlc.Author{
+						ID:   authorID.String(),
+						Name: "Author1",
 					}, nil)
 
-				mockBookRepository.EXPECT().GetByID(gomock.Any(), gomock.Any()).Return(&model.Book{
-					ID:          uuid.New(),
-					Title:       "Book1",
-					Description: "Description of book1",
-					AuthorID:    authorID,
-				}, nil)
+				mockQuerier.EXPECT().
+					CreateBook(gomock.Any(), gomock.Any()).
+					Return(nil)
+
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), gomock.Any()).
+					Return(sqlc.GetBookByIDRow{
+						ID:          uuid.New().String(),
+						Title:       "Book1",
+						Description: "Description of book1",
+						AuthorID:    authorID.String(),
+						AuthorName:  "Author1",
+					}, nil)
 			},
-			expectedResponse: &model.Book{
+			expectedResponse: dto.BookResponse{
 				Title:       "Book1",
 				Description: "Description of book1",
-				AuthorID:    uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4"),
+				Author: authorDto.AuthorResponse{
+					ID:   "779404e4-2660-4c80-b958-cfa72515e7d4",
+					Name: "Author1",
+				},
 			},
-			expectedError: nil,
 		},
 		{
 			name: "error invalid AuthorID",
-			input: &dto.CreateBookRequest{
+			input: dto.CreateBookRequest{
 				Title:       "Book1",
 				Description: "Description of book1",
-				AuthorID:    "invalid uuid",
+				AuthorID:    "invalid-uuid",
 			},
-			configureMock:    func(mockBookRepository *mocks.MockBookRepository, mockAuthorRepository *mocks.MockAuthorRepository) {},
-			expectedResponse: nil,
-			expectedError:    internalError.InvalidAuthorID,
-		},
-		{
-			name: "error exists check fails",
-			input: &dto.CreateBookRequest{
-				Title:       "Book1",
-				Description: "Description",
-				AuthorID:    "779404e4-2660-4c80-b958-cfa72515e7d4",
-			},
-			configureMock: func(mockBookRepository *mocks.MockBookRepository, mockAuthorRepository *mocks.MockAuthorRepository) {
-				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
-
-				mockAuthorRepository.EXPECT().
-					Exists(gomock.Any(), authorID).
-					Return(false, gorm.ErrInvalidDB)
-			},
-			expectedResponse: nil,
-			expectedError:    gorm.ErrInvalidDB,
+			configureMock: func(mockQuerier *mocks.MockQuerier) {},
+			expectedError: internalError.InvalidAuthorID,
 		},
 		{
 			name: "error author not found",
-			input: &dto.CreateBookRequest{
-				Title:       "Book1",
-				Description: "Description",
-				AuthorID:    "779404e4-2660-4c80-b958-cfa72515e7d4",
-			},
-			configureMock: func(mockBookRepository *mocks.MockBookRepository, mockAuthorRepository *mocks.MockAuthorRepository) {
-				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
-
-				mockAuthorRepository.EXPECT().
-					Exists(gomock.Any(), authorID).
-					Return(false, nil)
-			},
-			expectedResponse: nil,
-			expectedError:    internalError.AuthorNotFound,
-		},
-		{
-			name: "error duplicate book",
-			input: &dto.CreateBookRequest{
+			input: dto.CreateBookRequest{
 				Title:       "Book1",
 				Description: "Description of book1",
 				AuthorID:    "779404e4-2660-4c80-b958-cfa72515e7d4",
 			},
-			configureMock: func(mockBookRepository *mocks.MockBookRepository, mockAuthorRepository *mocks.MockAuthorRepository) {
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
 				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
 
-				mockAuthorRepository.EXPECT().
-					Exists(gomock.Any(), authorID).
-					Return(true, nil)
-
-				sampleBook := &model.Book{
-					Title:       "Book1",
-					Description: "Description of book1",
-					AuthorID:    authorID,
-				}
-
-				mockBookRepository.EXPECT().
-					Create(gomock.Any(), sampleBook).
-					Return(nil, internalError.BookDuplicate)
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), authorID.String()).
+					Return(sqlc.Author{}, sql.ErrNoRows)
 			},
-			expectedResponse: nil,
-			expectedError:    internalError.BookDuplicate,
+			expectedError: internalError.AuthorNotFound,
 		},
 		{
-			name: "error database connection failed",
-			input: &dto.CreateBookRequest{
+			name: "error database error on GetAuthorByID",
+			input: dto.CreateBookRequest{
 				Title:       "Book1",
 				Description: "Description of book1",
 				AuthorID:    "779404e4-2660-4c80-b958-cfa72515e7d4",
 			},
-			configureMock: func(mockBookRepository *mocks.MockBookRepository, mockAuthorRepository *mocks.MockAuthorRepository) {
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
 				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
 
-				mockAuthorRepository.EXPECT().
-					Exists(gomock.Any(), authorID).
-					Return(false, gorm.ErrInvalidDB)
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), authorID.String()).
+					Return(sqlc.Author{}, errors.New("db connection failed"))
 			},
-			expectedResponse: nil,
-			expectedError:    gorm.ErrInvalidDB,
+			expectedError: internalError.InternalError,
+		},
+		{
+			name: "error database error on CreateBook",
+			input: dto.CreateBookRequest{
+				Title:       "Book1",
+				Description: "Description of book1",
+				AuthorID:    "779404e4-2660-4c80-b958-cfa72515e7d4",
+			},
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
+
+				mockQuerier.EXPECT().
+					GetAuthorByID(gomock.Any(), authorID.String()).
+					Return(sqlc.Author{
+						ID:   authorID.String(),
+						Name: "Author1",
+					}, nil)
+
+				mockQuerier.EXPECT().
+					CreateBook(gomock.Any(), gomock.Any()).
+					Return(errors.New("db connection failed"))
+			},
+			expectedError: internalError.InternalError,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
-			bookRepoMock := mocks.NewMockBookRepository(ctrl)
 
-			test.configureMock(bookRepoMock, authorRepoMock)
-			service := book.NewBookService(bookRepoMock, authorRepoMock, zerolog.Nop())
+			mockQuerier := mocks.NewMockQuerier(ctrl)
+			test.configureMock(mockQuerier)
+
+			service := book.NewBookService(mockQuerier, zerolog.Nop())
 
 			result, err := service.CreateBook(context.Background(), test.input)
 
@@ -177,16 +151,11 @@ func TestBookService_CreateBook(t *testing.T) {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if test.expectedResponse != nil {
-				assert.NotNil(t, result)
-				assert.NotEqual(t, uuid.Nil, result.ID)
+				assert.NotEmpty(t, result.ID)
 				assert.Equal(t, test.expectedResponse.Title, result.Title)
 				assert.Equal(t, test.expectedResponse.Description, result.Description)
-				assert.Equal(t, test.expectedResponse.AuthorID, result.AuthorID)
-			} else {
-				assert.Nil(t, result)
+				assert.Equal(t, test.expectedResponse.Author.ID, result.Author.ID)
+				assert.Equal(t, test.expectedResponse.Author.Name, result.Author.Name)
 			}
 		})
 	}
@@ -195,122 +164,101 @@ func TestBookService_CreateBook(t *testing.T) {
 func TestBookService_GetAllBooks(t *testing.T) {
 	tests := []struct {
 		name             string
-		configureMock    func(*mocks.MockBookRepository)
-		expectedResponse []*model.Book
+		configureMock    func(*mocks.MockQuerier)
+		expectedResponse []dto.BookResponse
 		expectedError    error
 	}{
 		{
 			name: "success get all books",
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
 				authorID := uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4")
 
-				bookRepository.EXPECT().
-					GetAll(gomock.Any()).
-					Return([]*model.Book{
+				mockQuerier.EXPECT().
+					GetAllBooks(gomock.Any()).
+					Return([]sqlc.GetAllBooksRow{
 						{
-							ID:          uuid.MustParse("619c69fb-9bcb-451e-b825-29b81697a531"),
+							ID:          "619c69fb-9bcb-451e-b825-29b81697a531",
 							Title:       "Book1",
 							Description: "Description of book1",
-							Author: model.Author{
-								ID:   authorID,
-								Name: "Author1",
-							},
+							AuthorID:    authorID.String(),
+							AuthorName:  "Author1",
 						},
 						{
-							ID:          uuid.MustParse("92e37eac-0097-405e-a5cc-7055a39bdde8"),
+							ID:          "92e37eac-0097-405e-a5cc-7055a39bdde8",
 							Title:       "Book2",
 							Description: "Description of book2",
-							Author: model.Author{
-								ID:   authorID,
-								Name: "Author1",
-							},
+							AuthorID:    authorID.String(),
+							AuthorName:  "Author1",
 						},
 						{
-							ID:          uuid.MustParse("dec6b550-292e-45ad-b269-f59bfa06bf01"),
+							ID:          "dec6b550-292e-45ad-b269-f59bfa06bf01",
 							Title:       "Book3",
 							Description: "Description of book3",
-							Author: model.Author{
-								ID:   authorID,
-								Name: "Author1",
-							},
+							AuthorID:    authorID.String(),
+							AuthorName:  "Author1",
 						},
 					}, nil)
 			},
-			expectedResponse: []*model.Book{
+			expectedResponse: []dto.BookResponse{
 				{
-					ID:          uuid.MustParse("619c69fb-9bcb-451e-b825-29b81697a531"),
+					ID:          "619c69fb-9bcb-451e-b825-29b81697a531",
 					Title:       "Book1",
 					Description: "Description of book1",
-					Author: model.Author{
-						ID:   uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4"),
-						Name: "Author1",
-					},
+					Author:      authorDto.AuthorResponse{ID: "779404e4-2660-4c80-b958-cfa72515e7d4", Name: "Author1"},
 				},
 				{
-					ID:          uuid.MustParse("92e37eac-0097-405e-a5cc-7055a39bdde8"),
+					ID:          "92e37eac-0097-405e-a5cc-7055a39bdde8",
 					Title:       "Book2",
 					Description: "Description of book2",
-					Author: model.Author{
-						ID:   uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4"),
-						Name: "Author1",
-					},
+					Author:      authorDto.AuthorResponse{ID: "779404e4-2660-4c80-b958-cfa72515e7d4", Name: "Author1"},
 				},
 				{
-					ID:          uuid.MustParse("dec6b550-292e-45ad-b269-f59bfa06bf01"),
+					ID:          "dec6b550-292e-45ad-b269-f59bfa06bf01",
 					Title:       "Book3",
 					Description: "Description of book3",
-					Author: model.Author{
-						ID:   uuid.MustParse("779404e4-2660-4c80-b958-cfa72515e7d4"),
-						Name: "Author1",
-					},
+					Author:      authorDto.AuthorResponse{ID: "779404e4-2660-4c80-b958-cfa72515e7d4", Name: "Author1"},
 				},
 			},
-			expectedError: nil,
 		},
 		{
-			name: "error no book found",
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookRepository.EXPECT().
-					GetAll(gomock.Any()).
-					Return([]*model.Book{}, nil)
+			name: "error no books found",
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetAllBooks(gomock.Any()).
+					Return([]sqlc.GetAllBooksRow{}, nil)
 			},
-			expectedResponse: nil,
-			expectedError:    internalError.BookNotFound,
+			expectedError: internalError.BookNotFound,
 		},
 		{
 			name: "error database connection failed",
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookRepository.EXPECT().
-					GetAll(gomock.Any()).
-					Return(nil, gorm.ErrInvalidDB)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetAllBooks(gomock.Any()).
+					Return(nil, errors.New("db connection failed"))
 			},
-			expectedResponse: nil,
-			expectedError:    gorm.ErrInvalidDB,
+			expectedError: internalError.InternalError,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
-			bookRepoMock := mocks.NewMockBookRepository(ctrl)
 
-			test.configureMock(bookRepoMock)
-			service := book.NewBookService(bookRepoMock, authorRepoMock, zerolog.Nop())
+			mockQuerier := mocks.NewMockQuerier(ctrl)
+			test.configureMock(mockQuerier)
+
+			service := book.NewBookService(mockQuerier, zerolog.Nop())
 
 			books, err := service.GetAllBooks(context.Background())
 
 			if test.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, test.expectedError.Error(), err.Error())
+				assert.Nil(t, books)
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if test.expectedResponse != nil {
-				assert.NotNil(t, books)
+				assert.Len(t, books, len(test.expectedResponse))
 				for i := range books {
 					assert.Equal(t, test.expectedResponse[i].ID, books[i].ID)
 					assert.Equal(t, test.expectedResponse[i].Title, books[i].Title)
@@ -318,8 +266,6 @@ func TestBookService_GetAllBooks(t *testing.T) {
 					assert.Equal(t, test.expectedResponse[i].Author.ID, books[i].Author.ID)
 					assert.Equal(t, test.expectedResponse[i].Author.Name, books[i].Author.Name)
 				}
-			} else {
-				assert.Nil(t, books)
 			}
 		})
 	}
@@ -329,90 +275,75 @@ func TestBookService_GetBookByID(t *testing.T) {
 	tests := []struct {
 		name             string
 		bookID           uuid.UUID
-		configureMock    func(*mocks.MockBookRepository)
-		expectedResponse *model.Book
+		configureMock    func(*mocks.MockQuerier)
+		expectedResponse dto.BookResponse
 		expectedError    error
 	}{
 		{
 			name:   "success get book by ID",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookRepository.EXPECT().
-					GetByID(gomock.Any(), uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")).
-					Return(&model.Book{
-						ID:          uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{
+						ID:          "c6efb683-455d-4ca0-b8aa-83ca9b930a06",
 						Title:       "Book1",
 						Description: "Description of book1",
-						Author: model.Author{
-							ID:   uuid.MustParse("b57063a5-409c-457c-bbec-d5850b2e3761"),
-							Name: "Author1",
-						},
+						AuthorID:    "b57063a5-409c-457c-bbec-d5850b2e3761",
+						AuthorName:  "Author1",
 					}, nil)
 			},
-			expectedResponse: &model.Book{
-				ID:          uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
+			expectedResponse: dto.BookResponse{
+				ID:          "c6efb683-455d-4ca0-b8aa-83ca9b930a06",
 				Title:       "Book1",
 				Description: "Description of book1",
-				Author: model.Author{
-					ID:   uuid.MustParse("b57063a5-409c-457c-bbec-d5850b2e3761"),
-					Name: "Author1",
-				},
+				Author:      authorDto.AuthorResponse{ID: "b57063a5-409c-457c-bbec-d5850b2e3761", Name: "Author1"},
 			},
-			expectedError: nil,
 		},
 		{
 			name:   "error book not found",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookRepository.EXPECT().
-					GetByID(gomock.Any(), uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")).
-					Return(nil, internalError.BookNotFound)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{}, sql.ErrNoRows)
 			},
-			expectedResponse: nil,
-			expectedError:    internalError.BookNotFound,
+			expectedError: internalError.BookNotFound,
 		},
 		{
 			name:   "error database connection failed",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookRepository.EXPECT().
-					GetByID(gomock.Any(), uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")).
-					Return(nil, gorm.ErrInvalidDB)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{}, errors.New("db connection failed"))
 			},
-			expectedResponse: nil,
-			expectedError:    gorm.ErrInvalidDB,
+			expectedError: internalError.InternalError,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
-			bookRepoMock := mocks.NewMockBookRepository(ctrl)
 
-			test.configureMock(bookRepoMock)
-			service := book.NewBookService(bookRepoMock, authorRepoMock, zerolog.Nop())
+			mockQuerier := mocks.NewMockQuerier(ctrl)
+			test.configureMock(mockQuerier)
 
-			books, err := service.GetBookByID(context.Background(), test.bookID)
+			service := book.NewBookService(mockQuerier, zerolog.Nop())
+
+			result, err := service.GetBookByID(context.Background(), test.bookID)
 
 			if test.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if test.expectedResponse != nil {
-				assert.NotNil(t, books)
-				assert.NotEqual(t, test.expectedResponse.ID, uuid.Nil)
-				assert.Equal(t, test.expectedResponse.Title, books.Title)
-				assert.Equal(t, test.expectedResponse.Description, books.Description)
-				assert.Equal(t, test.expectedResponse.Author.ID, books.Author.ID)
-				assert.Equal(t, test.expectedResponse.Author.Name, books.Author.Name)
-			} else {
-				assert.Nil(t, books)
+				assert.Equal(t, test.expectedResponse.ID, result.ID)
+				assert.Equal(t, test.expectedResponse.Title, result.Title)
+				assert.Equal(t, test.expectedResponse.Description, result.Description)
+				assert.Equal(t, test.expectedResponse.Author.ID, result.Author.ID)
+				assert.Equal(t, test.expectedResponse.Author.Name, result.Author.Name)
 			}
 		})
 	}
@@ -422,58 +353,63 @@ func TestBookService_UpdateBook(t *testing.T) {
 	tests := []struct {
 		name          string
 		bookID        uuid.UUID
-		input         *dto.UpdateBookRequest
-		configureMock func(*mocks.MockBookRepository)
+		input         dto.UpdateBookRequest
+		configureMock func(*mocks.MockQuerier)
 		expectedError error
 	}{
 		{
 			name:   "success update book",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			input: &dto.UpdateBookRequest{
-				Description: "New updated description",
+			input: dto.UpdateBookRequest{
+				Title:       "Updated Title",
+				Description: "Updated description",
 			},
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookID := uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{
+						ID:          "c6efb683-455d-4ca0-b8aa-83ca9b930a06",
+						Title:       "Title",
+						Description: "description",
+					}, nil)
 
-				updates := map[string]interface{}{
-					"description": "New updated description",
-				}
-
-				bookRepository.EXPECT().
-					Update(gomock.Any(), bookID, updates).
+				mockQuerier.EXPECT().
+					UpdateBook(gomock.Any(), sqlc.UpdateBookParams{
+						Title:       "Updated Title",
+						Description: "Updated description",
+						ID:          "c6efb683-455d-4ca0-b8aa-83ca9b930a06",
+					}).
 					Return(nil)
+
 			},
-			expectedError: nil,
 		},
 		{
 			name:   "error book not found",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			input: &dto.UpdateBookRequest{
+			input: dto.UpdateBookRequest{
+				Title:       "Updated Title",
 				Description: "Updated description",
 			},
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookID := uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")
-
-				bookRepository.EXPECT().
-					Update(gomock.Any(), bookID, gomock.Any()).
-					Return(internalError.BookNotFound)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{}, sql.ErrNoRows)
 			},
 			expectedError: internalError.BookNotFound,
 		},
 		{
 			name:   "error database connection failed",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			input: &dto.UpdateBookRequest{
+			input: dto.UpdateBookRequest{
+				Title:       "Updated Title",
 				Description: "Updated description",
 			},
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookID := uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")
-
-				bookRepository.EXPECT().
-					Update(gomock.Any(), bookID, gomock.Any()).
-					Return(gorm.ErrInvalidDB)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), gomock.Any()).
+					Return(sqlc.GetBookByIDRow{}, errors.New("db connection failed"))
 			},
-			expectedError: gorm.ErrInvalidDB,
+			expectedError: internalError.InternalError,
 		},
 	}
 
@@ -481,11 +417,11 @@ func TestBookService_UpdateBook(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
-			bookRepoMock := mocks.NewMockBookRepository(ctrl)
 
-			test.configureMock(bookRepoMock)
-			service := book.NewBookService(bookRepoMock, authorRepoMock, zerolog.Nop())
+			mockQuerier := mocks.NewMockQuerier(ctrl)
+			test.configureMock(mockQuerier)
+
+			service := book.NewBookService(mockQuerier, zerolog.Nop())
 
 			err := service.UpdateBook(context.Background(), test.input, test.bookID)
 
@@ -503,44 +439,45 @@ func TestBookService_DeleteBook(t *testing.T) {
 	tests := []struct {
 		name          string
 		bookID        uuid.UUID
-		configureMock func(*mocks.MockBookRepository)
+		configureMock func(*mocks.MockQuerier)
 		expectedError error
 	}{
 		{
 			name:   "success delete book",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookID := uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{
+						ID:          "c6efb683-455d-4ca0-b8aa-83ca9b930a06",
+						Title:       "Title",
+						Description: "description",
+					}, nil)
 
-				bookRepository.EXPECT().
-					Delete(gomock.Any(), bookID).
+				mockQuerier.EXPECT().
+					DeleteBook(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
 					Return(nil)
 			},
-			expectedError: nil,
 		},
 		{
 			name:   "error book not found",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookID := uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")
-
-				bookRepository.EXPECT().
-					Delete(gomock.Any(), bookID).
-					Return(internalError.BookNotFound)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{}, sql.ErrNoRows)
 			},
 			expectedError: internalError.BookNotFound,
 		},
 		{
 			name:   "error database connection failed",
 			bookID: uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06"),
-			configureMock: func(bookRepository *mocks.MockBookRepository) {
-				bookID := uuid.MustParse("c6efb683-455d-4ca0-b8aa-83ca9b930a06")
-
-				bookRepository.EXPECT().
-					Delete(gomock.Any(), bookID).
-					Return(gorm.ErrInvalidDB)
+			configureMock: func(mockQuerier *mocks.MockQuerier) {
+				mockQuerier.EXPECT().
+					GetBookByID(gomock.Any(), "c6efb683-455d-4ca0-b8aa-83ca9b930a06").
+					Return(sqlc.GetBookByIDRow{}, errors.New("db connection failed"))
 			},
-			expectedError: gorm.ErrInvalidDB,
+			expectedError: internalError.InternalError,
 		},
 	}
 
@@ -548,11 +485,11 @@ func TestBookService_DeleteBook(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
-			authorRepoMock := mocks.NewMockAuthorRepository(ctrl)
-			bookRepoMock := mocks.NewMockBookRepository(ctrl)
 
-			test.configureMock(bookRepoMock)
-			service := book.NewBookService(bookRepoMock, authorRepoMock, zerolog.Nop())
+			mockQuerier := mocks.NewMockQuerier(ctrl)
+			test.configureMock(mockQuerier)
+
+			service := book.NewBookService(mockQuerier, zerolog.Nop())
 
 			err := service.DeleteBook(context.Background(), test.bookID)
 

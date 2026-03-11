@@ -12,7 +12,6 @@ package mocks
 import (
 	context "context"
 	dto "go-boilerplate-rest-api-chi/internal/author/dto"
-	entity "go-boilerplate-rest-api-chi/internal/model"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
@@ -44,10 +43,10 @@ func (m *MockAuthorService) EXPECT() *MockAuthorServiceMockRecorder {
 }
 
 // CreateAuthor mocks base method.
-func (m *MockAuthorService) CreateAuthor(ctx context.Context, req *dto.CreateAuthorRequest) (*entity.Author, error) {
+func (m *MockAuthorService) CreateAuthor(ctx context.Context, req dto.CreateAuthorRequest) (dto.AuthorResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAuthor", ctx, req)
-	ret0, _ := ret[0].(*entity.Author)
+	ret0, _ := ret[0].(dto.AuthorResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -59,10 +58,10 @@ func (mr *MockAuthorServiceMockRecorder) CreateAuthor(ctx, req any) *gomock.Call
 }
 
 // GetAuthorByID mocks base method.
-func (m *MockAuthorService) GetAuthorByID(ctx context.Context, authorID uuid.UUID) (*entity.Author, error) {
+func (m *MockAuthorService) GetAuthorByID(ctx context.Context, authorID uuid.UUID) (dto.AuthorResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAuthorByID", ctx, authorID)
-	ret0, _ := ret[0].(*entity.Author)
+	ret0, _ := ret[0].(dto.AuthorResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

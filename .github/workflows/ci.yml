@@ -2,7 +2,7 @@ name: Go
 
 on:
   push:
-    branches: [main]
+    branches: [main, SQLC]
   pull_request:
     branches: [main]
 
@@ -17,8 +17,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.x
-          cache: false
+          go-version-file: go.mod
+          cache: true
 
       - uses: golangci/golangci-lint-action@v8
         name: Install golangci-lint
@@ -35,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.x
+          go-version-file: go.mod
           cache: true
 
       - name: Download dependencies
@@ -43,7 +43,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          go test -coverprofile coverage.out $(go list ./... | grep -v '/docs' | grep -v '/mocks' | grep -v '/entity') 
+          go test -coverprofile coverage.out $(go list ./... | grep -v '/docs' | grep -v '/mocks' | grep -v '/entity')
           go tool cover -func=coverage.out
 
       - name: Generate GitHub Summary
@@ -53,7 +53,7 @@ jobs:
           echo "Total Coverage: **$PERCENTAGE**" >> $GITHUB_STEP_SUMMARY
 
       - name: Build
-        run: go build -o ./bin/app ./cmd/go-boilerplate-rest-api-chi
+        run: go build ./...
 
       - name: Run Govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
@@ -62,10 +62,38 @@ jobs:
     name: Docker Build
     needs: [lint, test]
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Build Docker Image
-        run: |
-          docker build -f docker/Dockerfile -t go-boilerplate-rest-api-chi:test .
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=sqlc,enable=${{ github.ref == 'refs/heads/SQLC' }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

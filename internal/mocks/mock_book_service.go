@@ -12,7 +12,6 @@ package mocks
 import (
 	context "context"
 	dto "go-boilerplate-rest-api-chi/internal/book/dto"
-	entity "go-boilerplate-rest-api-chi/internal/model"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
@@ -44,10 +43,10 @@ func (m *MockBookService) EXPECT() *MockBookServiceMockRecorder {
 }
 
 // CreateBook mocks base method.
-func (m *MockBookService) CreateBook(ctx context.Context, req *dto.CreateBookRequest) (*entity.Book, error) {
+func (m *MockBookService) CreateBook(ctx context.Context, req dto.CreateBookRequest) (dto.BookResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateBook", ctx, req)
-	ret0, _ := ret[0].(*entity.Book)
+	ret0, _ := ret[0].(dto.BookResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -73,10 +72,10 @@ func (mr *MockBookServiceMockRecorder) DeleteBook(ctx, bookID any) *gomock.Call 
 }
 
 // GetAllBooks mocks base method.
-func (m *MockBookService) GetAllBooks(ctx context.Context) ([]*entity.Book, error) {
+func (m *MockBookService) GetAllBooks(ctx context.Context) ([]dto.BookResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllBooks", ctx)
-	ret0, _ := ret[0].([]*entity.Book)
+	ret0, _ := ret[0].([]dto.BookResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -88,10 +87,10 @@ func (mr *MockBookServiceMockRecorder) GetAllBooks(ctx any) *gomock.Call {
 }
 
 // GetBookByID mocks base method.
-func (m *MockBookService) GetBookByID(ctx context.Context, bookID uuid.UUID) (*entity.Book, error) {
+func (m *MockBookService) GetBookByID(ctx context.Context, bookID uuid.UUID) (dto.BookResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBookByID", ctx, bookID)
-	ret0, _ := ret[0].(*entity.Book)
+	ret0, _ := ret[0].(dto.BookResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -103,7 +102,7 @@ func (mr *MockBookServiceMockRecorder) GetBookByID(ctx, bookID any) *gomock.Call
 }
 
 // UpdateBook mocks base method.
-func (m *MockBookService) UpdateBook(ctx context.Context, req *dto.UpdateBookRequest, bookID uuid.UUID) error {
+func (m *MockBookService) UpdateBook(ctx context.Context, req dto.UpdateBookRequest, bookID uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateBook", ctx, req, bookID)
 	ret0, _ := ret[0].(error)

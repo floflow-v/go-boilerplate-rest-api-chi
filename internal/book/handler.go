@@ -72,15 +72,13 @@ func (h *BookHandler) CreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := h.service.CreateBook(r.Context(), &req)
+	book, err := h.service.CreateBook(r.Context(), req)
 	if err != nil {
 		internalError.Handle(w, err)
 		return
 	}
 
-	bookResponse := dto.ToBookResponse(book)
-
-	response.JSON(w, http.StatusCreated, bookResponse)
+	response.JSON(w, http.StatusCreated, book)
 }
 
 // GetAllBooks godoc
@@ -100,9 +98,7 @@ func (h *BookHandler) GetAllBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	booksResponse := dto.ToBooksResponse(books)
-
-	response.JSON(w, http.StatusOK, booksResponse)
+	response.JSON(w, http.StatusOK, books)
 }
 
 // GetBookByID godoc
@@ -130,9 +126,7 @@ func (h *BookHandler) GetBookByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bookResponse := dto.ToBookResponse(book)
-
-	response.JSON(w, http.StatusOK, bookResponse)
+	response.JSON(w, http.StatusOK, book)
 }
 
 // UpdateBook godoc
@@ -144,7 +138,7 @@ func (h *BookHandler) GetBookByID(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Param			book_id	path		string					true	"Book ID"
 //	@Param			book	body		dto.UpdateBookRequest	true	"Book data"
-//	@Success		200		{object}	response.SuccessResponse
+//	@Success		204		{object} 	nil
 //	@Failure		400		{object}	internalError.Response
 //	@Failure		404		{object}	internalError.Response
 //	@Failure		500		{object}	internalError.Response
@@ -170,16 +164,13 @@ func (h *BookHandler) UpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.UpdateBook(r.Context(), &req, bookID)
+	err = h.service.UpdateBook(r.Context(), req, bookID)
 	if err != nil {
 		internalError.Handle(w, err)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, response.SuccessResponse{
-		Status:  "success",
-		Message: "Book updated successfully",
-	})
+	response.NoContent(w)
 }
 
 // DeleteBook godoc
@@ -189,7 +180,8 @@ func (h *BookHandler) UpdateBook(w http.ResponseWriter, r *http.Request) {
 //	@Tags			books
 //	@Produce		json
 //	@Param			book_id	path		string	true	"Book ID"
-//	@Success		200		{object}	response.SuccessResponse
+//	@Success		204		{object} 	nil
+//	@Failure		400		{object}	internalError.Response
 //	@Failure		404		{object}	internalError.Response
 //	@Failure		500		{object}	internalError.Response
 //	@Router			/books/{book_id} [delete]
@@ -206,10 +198,7 @@ func (h *BookHandler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, response.SuccessResponse{
-		Status:  "success",
-		Message: "Book deleted successfully",
-	})
+	response.NoContent(w)
 }
 
 // AuthTestRoute godoc

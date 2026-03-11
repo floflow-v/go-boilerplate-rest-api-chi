@@ -47,9 +47,9 @@ func (h *AuthorHandler) Routes() http.Handler {
 //	@Produce		json
 //	@Param			author	body		dto.CreateAuthorRequest	true	"Author data"
 //	@Success		201		{object}	dto.AuthorResponse
-//	@Failure		400		{object}	internalError.Response
-//	@Failure		409		{object}	internalError.Response
-//	@Failure		500		{object}	internalError.Response
+//	@Failure		400		{object}	internalError.Response	"invalid_request_body | validation_error"
+//	@Failure		409		{object}	internalError.Response	"author_duplicate"
+//	@Failure		500		{object}	internalError.Response	"internal_error"
 //	@Router			/authors [post]
 func (h *AuthorHandler) CreateAuthor(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateAuthorRequest
@@ -67,15 +67,13 @@ func (h *AuthorHandler) CreateAuthor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	author, err := h.service.CreateAuthor(r.Context(), &req)
+	author, err := h.service.CreateAuthor(r.Context(), req)
 	if err != nil {
 		internalError.Handle(w, err)
 		return
 	}
 
-	authorResponse := dto.ToAuthorResponse(author)
-
-	response.JSON(w, http.StatusCreated, authorResponse)
+	response.JSON(w, http.StatusCreated, author)
 }
 
 // GetAuthorByID godoc
@@ -86,9 +84,9 @@ func (h *AuthorHandler) CreateAuthor(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Param			author_id	path		string	true	"Author ID"
 //	@Success		200			{object}	dto.AuthorResponse
-//	@Failure		400			{object}	internalError.Response
-//	@Failure		404			{object}	internalError.Response
-//	@Failure		500			{object}	internalError.Response
+//	@Failure		400		{object}	internalError.Response	"invalid_uuid"
+//	@Failure		404		{object}	internalError.Response	"author_not_found"
+//	@Failure		500		{object}	internalError.Response	"internal_error"
 //	@Router			/authors/{author_id} [get]
 func (h *AuthorHandler) GetAuthorByID(w http.ResponseWriter, r *http.Request) {
 	authorID, err := uuid.Parse(chi.URLParam(r, "author_id"))
@@ -103,7 +101,5 @@ func (h *AuthorHandler) GetAuthorByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorResponse := dto.ToAuthorResponse(author)
-
-	response.JSON(w, http.StatusOK, authorResponse)
+	response.JSON(w, http.StatusOK, author)
 }

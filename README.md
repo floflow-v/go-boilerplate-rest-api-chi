@@ -15,6 +15,7 @@ Ce projet est une **API REST** en Go utilisant le framework [Chi](https://github
   - [Table des matières](#table-des-matières)
   - [Architecture du projet](#architecture-du-projet)
   - [Technologies utilisées](#technologies-utilisées)
+  - [Gestion de la base de données avec SQLC](#gestion-de-la-base-de-données-avec-sqlc)
   - [Gestion de la configuration](#gestion-de-la-configuration)
   - [Fichiers d'environnement](#fichiers-denvironnement)
   - [Utilisation de Docker](#utilisation-de-docker)
@@ -57,7 +58,7 @@ internal/
 
 - **Go** (>=1.25)
 - **Chi** : router HTTP léger et performant
-- **GORM** : ORM pour la gestion de la base de données
+- **SQLC** : génération automatique de code SQL
 - **Zerolog** : logging structuré et performant
 - **Swaggo** : génération automatique de documentation Swagger
 - **Scalar** : UI moderne pour la doc Swagger
@@ -65,6 +66,23 @@ internal/
 - **Task** : automatisation des tâches de développement
 - **Docker & Docker Compose** : conteneurisation
 - **Testify, GoMock** : tests unitaires et mocks
+
+---
+
+## Gestion de la base de données avec SQLC
+
+[SQLC](https://sqlc.dev/) génère automatiquement du **code Go type-safe à partir de requêtes SQL**. Vous écrivez du SQL pur, SQLC produit les fonctions Go correspondantes.
+
+- Les requêtes SQL sont écrites dans `internal/database/queries/` avec des annotations (`:exec`, `:one`, `:many`)
+- Le code Go est généré dans `internal/database/sqlc/` (structs, fonctions, interface `Querier`)
+- L'interface `Querier` est injectée dans les services et utilisée pour les mocks de tests
+- Les fichiers générés ne doivent **jamais** être modifiés manuellement
+
+**Régénérer après modification des fichiers SQL :**
+
+```sh
+sqlc generate
+```
 
 ---
 
