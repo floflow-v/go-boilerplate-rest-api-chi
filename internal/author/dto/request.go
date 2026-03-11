@@ -1,5 +1,5 @@
 package dto
 
 type CreateAuthorRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" example:"J.K. Rowling" validate:"required"`
 }

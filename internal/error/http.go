@@ -4,12 +4,12 @@ import (
 	"errors"
 	"net/http"
 
-	"go-boilerplate-rest-api-chi/internal/response"
+	"go-rest-api-chi-example/internal/response"
 )
 
 type Response struct {
-	Error   string `json:"error" example:"author_not_found"`
-	Message string `json:"message" example:"Author not found"`
+	Error   string `json:"error" example:"error_code"`
+	Message string `json:"message" example:"Human readable error message"`
 	Details any    `json:"details,omitempty"`
 }
 

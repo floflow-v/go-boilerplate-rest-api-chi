@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"go-boilerplate-rest-api-chi/internal/app"
+	"go-rest-api-chi-example/internal/app"
 )
 
-// @title						go-boilerplate-rest-api-chi
+// @title						go-rest-api-chi-example
 // @version					1.0
 // @description				This is a sample API boilerplate with Chi.
 // @BasePath					/api

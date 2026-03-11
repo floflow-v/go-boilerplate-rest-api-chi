@@ -3,7 +3,7 @@ package validator_test
 import (
 	"testing"
 
-	"go-boilerplate-rest-api-chi/internal/validator"
+	"go-rest-api-chi-example/internal/validator"
 )
 
 func TestNew(t *testing.T) {

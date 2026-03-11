@@ -20,3 +20,7 @@ func JSON(w http.ResponseWriter, statusCode int, payload any) {
 
 	_ = json.NewEncoder(w).Encode(payload)
 }
+
+func NoContent(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -11,15 +11,16 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"go-boilerplate-rest-api-chi/internal/config"
-	"go-boilerplate-rest-api-chi/internal/database"
-	"go-boilerplate-rest-api-chi/internal/logger"
+	"go-rest-api-chi-example/internal/config"
+	"go-rest-api-chi-example/internal/database"
+	"go-rest-api-chi-example/internal/logger"
+	"go-rest-api-chi-example/migrations"
 )
 
 type Application struct {
-	apiServer        *http.Server
-	db               *database.Database
-	logger           zerolog.Logger
+	apiServer *http.Server
+	db        *database.Database
+	logger    zerolog.Logger
 }
 
 func New() (*Application, error) {
@@ -35,6 +36,10 @@ func New() (*Application, error) {
 
 	db, err := database.Init(newConfig, newLogger)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := migrations.Run(db.DB); err != nil {
 		return nil, err
 	}
 

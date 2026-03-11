@@ -10,15 +10,14 @@ RUN go mod download
 
 COPY . .
 
-RUN swag init --generalInfo cmd/go-boilerplate-rest-api-chi/main.go --parseDependency --parseInternal
-RUN mkdir -p build
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o ./build ./cmd/go-boilerplate-rest-api-chi
+RUN swag init --generalInfo cmd/go-rest-api-chi-example/main.go --parseDependency --parseInternal
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o ./go-rest-api-chi-example ./cmd/go-rest-api-chi-example
 
 # Run
 FROM gcr.io/distroless/static-debian12
 
 WORKDIR /app
 # Copy the built binary
-COPY --from=builder /app/build/go-boilerplate-rest-api-chi /api/
+COPY --from=builder /app/go-rest-api-chi-example /app/go-rest-api-chi-example
 COPY --from=builder /app/docs /app/docs
-ENTRYPOINT ["/api/go-boilerplate-rest-api-chi"]
+ENTRYPOINT ["/app/go-rest-api-chi-example"]

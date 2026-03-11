@@ -16,12 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"go-boilerplate-rest-api-chi/internal/author"
-	"go-boilerplate-rest-api-chi/internal/author/dto"
-	internalError "go-boilerplate-rest-api-chi/internal/error"
-	"go-boilerplate-rest-api-chi/internal/mocks"
-	"go-boilerplate-rest-api-chi/internal/model"
-	"go-boilerplate-rest-api-chi/internal/validator"
+	"go-rest-api-chi-example/internal/author"
+	"go-rest-api-chi-example/internal/author/dto"
+	internalError "go-rest-api-chi-example/internal/error"
+	"go-rest-api-chi-example/internal/mocks"
+	"go-rest-api-chi-example/internal/validator"
 )
 
 func TestAuthorHandler_CreateAuthor(t *testing.T) {
@@ -38,14 +37,14 @@ func TestAuthorHandler_CreateAuthor(t *testing.T) {
 				Name: "George R.R. Martin",
 			},
 			configureMock: func(mockService *mocks.MockAuthorService) {
-				input := &dto.CreateAuthorRequest{
+				input := dto.CreateAuthorRequest{
 					Name: "George R.R. Martin",
 				}
 
 				mockService.EXPECT().
 					CreateAuthor(gomock.Any(), input).
-					Return(&model.Author{
-						ID:   uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51"),
+					Return(dto.AuthorResponse{
+						ID:   uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51").String(),
 						Name: "George R.R. Martin",
 					}, nil)
 			},
@@ -89,13 +88,13 @@ func TestAuthorHandler_CreateAuthor(t *testing.T) {
 				Name: "Duplicate Author",
 			},
 			configureMock: func(mockService *mocks.MockAuthorService) {
-				input := &dto.CreateAuthorRequest{
+				input := dto.CreateAuthorRequest{
 					Name: "Duplicate Author",
 				}
 
 				mockService.EXPECT().
 					CreateAuthor(gomock.Any(), input).
-					Return(nil, internalError.AuthorDuplicate)
+					Return(dto.AuthorResponse{}, internalError.AuthorDuplicate)
 			},
 			expectedStatusCode: http.StatusConflict,
 			expectedResponse: internalError.Response{
@@ -109,13 +108,13 @@ func TestAuthorHandler_CreateAuthor(t *testing.T) {
 				Name: "George R.R. Martin",
 			},
 			configureMock: func(mockService *mocks.MockAuthorService) {
-				input := &dto.CreateAuthorRequest{
+				input := dto.CreateAuthorRequest{
 					Name: "George R.R. Martin",
 				}
 
 				mockService.EXPECT().
 					CreateAuthor(gomock.Any(), input).
-					Return(nil, errors.New("database connection failed"))
+					Return(dto.AuthorResponse{}, errors.New("database connection failed"))
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedResponse: internalError.Response{
@@ -179,8 +178,8 @@ func TestAuthorHandler_GetAuthorByID(t *testing.T) {
 			configureMock: func(mockService *mocks.MockAuthorService) {
 				mockService.EXPECT().
 					GetAuthorByID(gomock.Any(), uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51")).
-					Return(&model.Author{
-						ID:   uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51"),
+					Return(dto.AuthorResponse{
+						ID:   uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51").String(),
 						Name: "George R.R. Martin",
 					}, nil)
 			},
@@ -206,7 +205,7 @@ func TestAuthorHandler_GetAuthorByID(t *testing.T) {
 			configureMock: func(mockService *mocks.MockAuthorService) {
 				mockService.EXPECT().
 					GetAuthorByID(gomock.Any(), uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51")).
-					Return(nil, internalError.AuthorNotFound)
+					Return(dto.AuthorResponse{}, internalError.AuthorNotFound)
 			},
 			expectedStatusCode: http.StatusNotFound,
 			expectedResponse: internalError.Response{
@@ -220,7 +219,7 @@ func TestAuthorHandler_GetAuthorByID(t *testing.T) {
 			configureMock: func(mockService *mocks.MockAuthorService) {
 				mockService.EXPECT().
 					GetAuthorByID(gomock.Any(), uuid.MustParse("aeca0955-bae4-47e9-9f85-6818dc68ca51")).
-					Return(nil, errors.New("database connection failed"))
+					Return(dto.AuthorResponse{}, errors.New("database connection failed"))
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedResponse: internalError.Response{

@@ -6,8 +6,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
-	"go-boilerplate-rest-api-chi/internal/config"
-	"go-boilerplate-rest-api-chi/internal/logger"
+	"go-rest-api-chi-example/internal/config"
+	"go-rest-api-chi-example/internal/logger"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -21,7 +21,7 @@ func TestNewLogger(t *testing.T) {
 	})
 
 	t.Run("invalid level defaults to info", func(t *testing.T) {
-		cfg := &config.Config{Log: config.LogConfig{Level: "unknown", Format: "json"}}
+		cfg := &config.Config{Log: config.LogConfig{Level: "Unknownn", Format: "json"}}
 		log, err := logger.NewLogger(cfg)
 
 		assert.NoError(t, err)

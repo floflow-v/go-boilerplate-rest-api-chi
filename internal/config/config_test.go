@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"go-boilerplate-rest-api-chi/internal/config"
+	"go-rest-api-chi-example/internal/config"
 )
 
 func TestLoadConfig(t *testing.T) {

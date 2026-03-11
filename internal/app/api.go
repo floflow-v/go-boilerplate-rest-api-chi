@@ -17,11 +17,11 @@ import (
 	"github.com/go-chi/httprate"
 	"github.com/rs/zerolog"
 
-	"go-boilerplate-rest-api-chi/internal/author"
-	"go-boilerplate-rest-api-chi/internal/book"
-	"go-boilerplate-rest-api-chi/internal/config"
-	"go-boilerplate-rest-api-chi/internal/database"
-	internalValidator "go-boilerplate-rest-api-chi/internal/validator"
+	"go-rest-api-chi-example/internal/author"
+	"go-rest-api-chi-example/internal/book"
+	"go-rest-api-chi-example/internal/config"
+	"go-rest-api-chi-example/internal/database"
+	internalValidator "go-rest-api-chi-example/internal/validator"
 )
 
 func buildAPI(cfg config.Config, logger zerolog.Logger, db *database.Database) *http.Server {
@@ -29,11 +29,8 @@ func buildAPI(cfg config.Config, logger zerolog.Logger, db *database.Database) *
 
 	// -------- Repos / Services / Handlers --------
 
-	bookRepo := book.NewBookRepository(db.Gorm, logger)
-	authorRepo := author.NewAuthorRepository(db.Gorm, logger)
-
-	bookService := book.NewBookService(bookRepo, authorRepo, logger)
-	authorService := author.NewAuthorService(authorRepo, logger)
+	bookService := book.NewBookService(db.Queries, logger)
+	authorService := author.NewAuthorService(db.Queries, logger)
 
 	bookHandler := book.NewBookHandler(bookService, validator, logger)
 	authorHandler := author.NewAuthorHandler(authorService, validator, logger)

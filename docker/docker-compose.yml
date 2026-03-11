@@ -1,4 +1,4 @@
-name: go-boilerplate-rest-api-chi
+name: go-rest-api-chi-example
 services:
   db:
     image: mariadb
@@ -16,7 +16,7 @@ services:
       - db_volume:/var/lib/mysql
 
   api:
-    container_name: go-boilerplate-rest-api-chi
+    container_name: go-rest-api-chi-example
     build:
       context: ..
       dockerfile: docker/Dockerfile
